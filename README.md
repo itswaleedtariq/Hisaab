@@ -22,7 +22,7 @@ Team lead and integrator rotates each milestone:
 
 ## What it does
 
-- Register users and create groups with an admin
+- Register users with independent groups and admin controls.
 - Record expenses in PKR (stored as integer paisa, never floats)
 - Split an expense equally, by exact amounts, by percentage or by shares
 - Keep balances correct even when several members post at the same time
