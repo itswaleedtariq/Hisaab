@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hisaab"
+version = "0.2.0"
+description = "Hisaab: a group expense splitter (SE423 x SE431 joint project)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.110",
+    "pydantic>=2.6",
+    "uvicorn>=0.29",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+    "httpx>=0.27",
+    "ruff>=0.4",
+    "pylint>=3.1",
+    "bandit>=1.7",
+    "radon>=6.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["hisaab*"]
+
+[tool.setuptools.package-data]
+hisaab = ["persistence/schema.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=hisaab --cov-report=term-missing --cov-report=xml"
+
+[tool.coverage.run]
+branch = true
+source = ["hisaab"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S311"]
+
+[tool.pylint.main]
+py-version = "3.12"
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.bandit]
+exclude_dirs = ["tests"]
