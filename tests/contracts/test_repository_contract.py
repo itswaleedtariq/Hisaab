@@ -144,3 +144,40 @@ def test_report_jobs(seeded):
     repos["jobs"].update(done)
     assert repos["jobs"].get(job.id) == done
     assert repos["jobs"].get(999) is None
+
+
+
+def test_in_memory_user_lookup_is_safe_during_concurrent_adds():
+    """DEF-05: reads must hold the repository lock, as SQLite isolates its own reads."""
+    import sys
+    import threading
+
+    old = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)  # switch threads very often so the race shows up every run
+    errors = []
+    try:
+        for _trial in range(5):
+            repo, stop = InMemoryUserRepository(), threading.Event()
+
+            def writer(repo=repo, stop=stop):
+                i = 0
+                while not stop.is_set():
+                    repo.add("u", f"u{i}@example.com", NOW)
+                    i += 1
+
+            def reader(repo=repo):
+                try:
+                    for _ in range(2000):
+                        repo.find_by_email("nobody@example.com")
+                except RuntimeError as exc:
+                    errors.append(exc)
+
+            w, r = threading.Thread(target=writer), threading.Thread(target=reader)
+            w.start()
+            r.start()
+            r.join()
+            stop.set()
+            w.join()
+    finally:
+        sys.setswitchinterval(old)
+    assert errors == []
