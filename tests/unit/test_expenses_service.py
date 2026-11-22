@@ -161,3 +161,14 @@ def test_get_and_list_require_membership(g):
         g.expenses.get(expense.id, zara)
     with pytest.raises(NotGroupMemberError):
         g.expenses.list_for_group(g.group_id, zara)
+
+
+def test_idempotent_replay_still_requires_membership(g):
+    """DEF-01: a reused key must not let a non-member read another group's expense."""
+    g.spend(g.ali, "9", key="k-secret")
+    zara = g.users.register("Zara", "zara@example.com").id
+    with pytest.raises(NotGroupMemberError):
+        g.expenses.record(
+            NewExpense(g.group_id, zara, Money(900), "equal", [zara], idempotency_key="k-secret"),
+            zara,
+        )
