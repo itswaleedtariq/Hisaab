@@ -98,3 +98,16 @@ def test_csv_cells_cannot_start_a_formula(r):
     expense = dataclasses.replace(add_expense(r), description="=HYPERLINK(1)")
     row = CsvExporter().render([expense]).splitlines()[1]
     assert ",'=HYPERLINK(1)," in row
+
+
+def test_unexpected_error_still_marks_job_failed(r):
+    """DEF-02: any error inside the worker thread must end in FAILED, not stay RUNNING."""
+
+    class BrokenExporter(CsvExporter):
+        def render(self, expenses):
+            raise ValueError("bad row in month")
+
+    r.worker._exporters["csv"] = BrokenExporter()
+    _job, failed = run(r, r.ali)
+    assert failed.status is JobStatus.FAILED
+    assert "bad row" in failed.error
