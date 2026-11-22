@@ -75,6 +75,8 @@ class ExpenseService:
     def record(self, data: NewExpense, actor_id: int) -> Expense:
         """FR-04 + FR-16. Returns the existing expense for a repeated idempotency key."""
         with self._uow.for_group(data.group_id):
+            # Membership first, so a replayed key cannot reveal another group's data (DEF-01).
+            self._membership.require_member(data.group_id, actor_id)
             if data.idempotency_key:
                 existing = self._expenses.find_by_idempotency_key(data.idempotency_key)
                 if existing is not None:
@@ -83,7 +85,6 @@ class ExpenseService:
                     logger.info("idempotent replay key=%s", data.idempotency_key)
                     return existing
 
-            self._membership.require_member(data.group_id, actor_id)
             self._membership.ensure_can_record_expenses(data.group_id)
             members = set(self._membership.members(data.group_id, actor_id))
             if data.payer_id not in members:
