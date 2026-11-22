@@ -22,7 +22,7 @@ Team lead and integrator rotates each milestone:
 
 ## What it does
 
-- Register users with independent groups and admin controls.
+- Register users and create groups with an admin
 - Record expenses in PKR (stored as integer paisa, never floats)
 - Split an expense equally, by exact amounts, by percentage or by shares
 - Keep balances correct even when several members post at the same time
@@ -46,8 +46,8 @@ Each feature has a requirement ID (FR-01 to FR-16, QR-01 to QR-17). The full lis
 You need Python 3.12 and Git.
 
 ```bash
-git clone https://github.com/<owner>/hisaab.git
-cd hisaab
+git clone https://github.com/itswaleedtariq/Hisaab.git
+cd Hisaab
 python -m venv .venv
 
 # Windows
@@ -72,34 +72,62 @@ git config --global user.email "your-github-email@example.com"
 pytest                      # whole suite with coverage
 pytest tests/unit           # fast unit tests
 pytest tests/concurrency    # thread-safety tests
+pytest tests/contracts      # LSP contract tests (in-memory vs SQLite, all split strategies)
 ruff check .                # lint
+```
+
+Static analysis (the same commands the `quality` CI job runs):
+
+```bash
+pylint hisaab
+bandit -r hisaab
+radon cc hisaab -s -a
+```
+
+Property-based tests run 300 examples by default. For the full QR-01 run of 10,000 examples per split type:
+
+```bash
+HYPOTHESIS_PROFILE=thorough pytest tests/contracts       # macOS / Linux
+set HYPOTHESIS_PROFILE=thorough && pytest tests/contracts # Windows cmd
 ```
 
 Coverage is printed in the terminal and saved to `coverage.xml`. CI runs the same commands on every push.
 
 ## Running the API
 
-The API layer arrives in M2. Once it is in:
-
 ```bash
 uvicorn hisaab.api.app:app --reload
 ```
 
-Then open http://127.0.0.1:8000/docs.
+Then open http://127.0.0.1:8000/docs. The database is created at `data/hisaab.db` (set `HISAAB_DB` to change it).
+
+Every request that acts on a group needs an `X-User-Id` header with the caller's user id. This stands in for real login, which is out of scope for the course (risk R10). A quick walk-through:
+
+```bash
+curl -X POST localhost:8000/users -H "content-type: application/json" -d '{"name":"Ali","email":"ali@example.com"}'
+curl -X POST localhost:8000/users -H "content-type: application/json" -d '{"name":"Sara","email":"sara@example.com"}'
+curl -X POST localhost:8000/groups -H "content-type: application/json" -H "X-User-Id: 1" -d '{"name":"Flat 4B"}'
+curl -X POST localhost:8000/groups/1/members -H "content-type: application/json" -H "X-User-Id: 1" -d '{"user_id":2}'
+curl -X POST localhost:8000/groups/1/expenses -H "content-type: application/json" -H "X-User-Id: 1" \
+     -d '{"payer_id":1,"amount":"1000.01","split_type":"equal","participants":[1,2]}'
+curl localhost:8000/groups/1/balances -H "X-User-Id: 2"
+curl localhost:8000/groups/1/settlement-plan -H "X-User-Id: 2"
+```
 
 ## Project layout
 
 ```
 hisaab/
-  domain/        Money, Expense, Share and the shared exception classes (errors.py)
+  domain/        Money, models, Clock, UnitOfWork interface, exception classes (errors.py)
   users/         Users and Groups
   expenses/      Expenses (ExpenseService, ExpenseBuilder)
   splitting/     Split Engine (split strategies and their factory)
-  ledger/        Ledger and Settlement (balances, locks, settlement planner)
+  ledger/        Ledger and Settlement (ledger service, locks, planner, SettlementFacade)
   reports/       Reports (background worker, CSV export)
   events/        In-process event bus
-  persistence/   SQLite adapters and schema.sql
-  api/           FastAPI routes and error mapping
+  persistence/   SQLite adapters, in-memory unit of work and schema.sql
+  api/           FastAPI routes, request schemas and error mapping
+  bootstrap.py   composition root: the only place concrete classes are chosen
 tests/
   unit/          fast tests with in-memory repositories
   integration/   tests against a temporary SQLite file
