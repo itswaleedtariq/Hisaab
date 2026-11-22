@@ -81,3 +81,10 @@ def test_sqlite_errors_become_persistence_errors(db):
     with pytest.raises(PersistenceError) as info, db.transaction() as conn:
         insert_expense(conn, amount=0)
     assert isinstance(info.value.__cause__, sqlite3.IntegrityError)
+
+
+def test_transaction_mode_is_whitelisted(db):
+    """DEF-03: nothing but IMMEDIATE or DEFERRED may reach the BEGIN statement (QR-11)."""
+    with pytest.raises(ValueError), db.transaction("EXCLUSIVE; DROP TABLE users"):
+        pass
+    assert db.query("SELECT COUNT(*) AS n FROM users")[0]["n"] == 1
